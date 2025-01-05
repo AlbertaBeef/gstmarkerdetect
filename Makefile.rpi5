@@ -12,19 +12,20 @@
 ## See the License for the specific language governing permissions and
 ## limitations under the License.
 
+
 PROJECT  = libgstmarkerdetect.so
 CXX     ?= aarch64-linux-gnu-g++
 CC      ?= aarch64-linux-gnu-gcc
 CFLAGS  := -O2 -Wall -Wpointer-arith -Wno-unused-function -ffast-math -fPIC -shared
 CFLAGS  += --sysroot=$(SYSROOT) 
-CFLAGS  += -I$(SYSROOT)/usr/include/gstreamer-1.0 -I$(SYSROOT)/usr/lib/gstreamer-1.0/include
-CFLAGS  += -I$(SYSROOT)/usr/include/glib-2.0 -I$(SYSROOT)/usr/lib/glib-2.0/include
+CFLAGS  += -I$(SYSROOT)/usr/include/gstreamer-1.0 -I$(SYSROOT)/lib/aarch64-linux-gnu/gstreamer-1.0/include
+CFLAGS  += -I$(SYSROOT)/usr/include/glib-2.0 -I$(SYSROOT)/lib/aarch64-linux-gnu/glib-2.0/include
 CFLAGS  += -std=c++17
 CFLAGS  += -I$(SYSROOT)/usr/include/opencv4
-LDFLAGS := -lpthread -lrt -ldl -lcrypt -lstdc++ -lglog
+#LDFLAGS := -lpthread -lrt -ldl -lcrypt -lstdc++ -lglog
+LDFLAGS := -lpthread -lrt -ldl -lcrypt -lstdc++
 LDFLAGS += -lgstbase-1.0 -lgstvideo-1.0 
 LDFLAGS += -lopencv_core -lopencv_video -lopencv_videoio -lopencv_imgproc -lopencv_imgcodecs -lopencv_highgui -lopencv_ximgproc -lopencv_aruco 
-#LDFLAGS += -lxilinxopencl -lvitis_ai_library-facedetect
 
 CUR_DIR =   $(shell pwd)
 
@@ -34,7 +35,7 @@ OBJ      =   $(patsubst %.c, %.o, $(notdir $(C_DIR)))
 CPP_DIR :=   $(shell find $(SRC) -name *.cpp)
 OBJ     +=   $(patsubst %.cpp, %.o, $(notdir $(CPP_DIR)))
 
-CFLAGS +=  -mcpu=cortex-a53
+CFLAGS +=  -mcpu=cortex-a72
 
 SRC     =   $(CUR_DIR)
 
