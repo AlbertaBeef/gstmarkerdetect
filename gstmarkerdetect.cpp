@@ -1,33 +1,17 @@
-/* GStreamer
- * Copyright (C) 2020 FIXME <fixme@example.com>
+/* 
+ * Copyright 2025 Tria Technologies Inc.
  *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Library General Public
- * License as published by the Free Software Foundation; either
- * version 2 of the License, or (at your option) any later version.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Library General Public License for more details.
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * You should have received a copy of the GNU Library General Public
- * License along with this library; if not, write to the
- * Free Software Foundation, Inc., 51 Franklin Street, Suite 500,
- * Boston, MA 02110-1335, USA.
- */
-/**
- * SECTION:element-gstmarkerdetect
- *
- * The markerdetect element does FIXME stuff.
- *
- * <refsect2>
- * <title>Example launch line</title>
- * |[
- * gst-launch-1.0 -v fakesrc ! markerdetect ! FIXME ! fakesink
- * ]|
- * FIXME Describe what the pipeline does.
- * </refsect2>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 #ifdef HAVE_CONFIG_H
@@ -73,6 +57,9 @@ static GstFlowReturn gst_markerdetect_transform_frame_ip (GstVideoFilter * filte
 enum
 {
   PROP_0,
+  PROP_CC_SCRIPT,
+  PROP_CC_EXTRA_ARGS,
+  PROP_CC_SKIP_FRAMES,
   PROP_WB_SCRIPT,
   PROP_WB_EXTRA_ARGS,
   PROP_WB_SKIP_FRAMES
@@ -119,7 +106,25 @@ gst_markerdetect_class_init (GstMarkerDetectClass * klass)
 
   gobject_class->set_property = gst_markerdetect_set_property;
   gobject_class->get_property = gst_markerdetect_get_property;
+
+  g_object_class_install_property (gobject_class, PROP_CC_SCRIPT,
+      g_param_spec_string ("cc-script", "cc-script",
+          "Color Checker script.", 
+          NULL,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
+  g_object_class_install_property (gobject_class, PROP_CC_EXTRA_ARGS,
+      g_param_spec_string ("cc-extra-args", "cc-extra-args",
+          "Extra arguments for Color Checker script.", 
+          NULL,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   
+  g_object_class_install_property (gobject_class, PROP_CC_SKIP_FRAMES,
+      g_param_spec_int ("cc-skip-frames", "cc-skip-frames",
+          "Color Checker skip frames.", 0, G_MAXINT,
+          0,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
   g_object_class_install_property (gobject_class, PROP_WB_SCRIPT,
       g_param_spec_string ("wb-script", "wb-script",
           "White Balance script.", 
@@ -151,6 +156,12 @@ static void
 gst_markerdetect_init (GstMarkerDetect *markerdetect)
 {
    markerdetect->iterations = 0;
+
+   markerdetect->cc_script = NULL;
+   markerdetect->cc_extra_args = NULL;
+   markerdetect->cc_skip_frames = 0;
+   markerdetect->cc_frame_count = 0;
+
    markerdetect->wb_script = NULL;
    markerdetect->wb_extra_args = NULL;
    markerdetect->wb_skip_frames = 0;
@@ -399,7 +410,16 @@ gst_markerdetect_transform_frame_ip (GstVideoFilter * filter, GstVideoFrame * fr
       std::vector<cv::Mat> bgr_planes;
       cv::split( img, bgr_planes );
 
+      // Create string of bgr values for each color patch
+      std::stringstream color_patch_bgr_values;
+      color_patch_bgr_values << "";
+
+      // Cumulate color patch errors
       float chartError = 0.0;
+      float chartErrorB = 0.0;
+      float chartErrorG = 0.0;
+      float chartErrorR = 0.0;
+      
       for ( int i = 0; i < 24; i++ )
       {
         // Define corner points for each color patch
@@ -436,25 +456,21 @@ gst_markerdetect_transform_frame_ip (GstVideoFilter * filter, GstVideoFrame * fr
         float g_error = chartColorsRef[i][1]-g_mean;
         float r_error = chartColorsRef[i][2]-r_mean;
         
-        //printf("[%02d] GT = %03d, %03d, %03d, MEAN = %03d, %03d, %03d\n", i,
-        //  (int)chartColorsRef[i][0], (int)chartColorsRef[i][1], (int)chartColorsRef[i][2],
-        //  (int)b_mean, (int)g_mean, (int)r_mean  
-        //);
-        float patchError = std::sqrt(pow(b_error,2) + pow(g_error,2) + pow(r_error,2));
-        chartError += patchError; 
-      
-        // Draw Color path ROI
-        std::vector<cv::Point> patchCornersFixpt;
-        patchCornersFixpt.push_back( cv::Point(patchCorners[0].x,patchCorners[0].y) );
-        patchCornersFixpt.push_back( cv::Point(patchCorners[1].x,patchCorners[1].y) );
-        patchCornersFixpt.push_back( cv::Point(patchCorners[2].x,patchCorners[2].y) );
-        patchCornersFixpt.push_back( cv::Point(patchCorners[3].x,patchCorners[3].y) );
-        cv::polylines(img, patchCornersFixpt, true, cv::Scalar (0, 255, 0), 2, 16);
-        std::stringstream e_str;
-        e_str << "E=" << unsigned(patchError);
-        cv::putText(img, e_str.str(), patchCornersFixpt[0], cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(0,0,255), 1, cv::LINE_AA);
+        // Create string of bgr values for each color patch
+        color_patch_bgr_values << int(b_mean) << " " << int(g_mean) << " " << int(r_mean) << " ";
         
-#if 1
+        // Cumulate color patch errors
+        float patchError = std::sqrt(pow(b_error,2) + pow(g_error,2) + pow(r_error,2));
+        chartError += patchError;
+        chartErrorB += abs(b_error);
+        chartErrorG += abs(g_error);
+        chartErrorR += abs(r_error);
+      
+#if 0
+        //
+        // This all seemed like a good idea, but the graphs are too small to be of any use
+        //
+        
         // Draw bars of deltas between measured and ground truth
         int plot_w = 100, plot_h = 100;
         cv::Mat plotImage( plot_h, plot_w, CV_8UC3, cv::Scalar(255,255,255) );
@@ -510,22 +526,53 @@ gst_markerdetect_transform_frame_ip (GstVideoFilter * filter, GstVideoFrame * fr
         cv::fillConvexPoly(img, pts_dst, 4, cv::Scalar(0), cv::LINE_AA);
         img = img + img_temp;
 #endif        
+
+        // Draw Color Patch ROI
+        std::vector<cv::Point> patchCornersFixpt;
+        patchCornersFixpt.push_back( cv::Point(patchCorners[0].x,patchCorners[0].y) );
+        patchCornersFixpt.push_back( cv::Point(patchCorners[1].x,patchCorners[1].y) );
+        patchCornersFixpt.push_back( cv::Point(patchCorners[2].x,patchCorners[2].y) );
+        patchCornersFixpt.push_back( cv::Point(patchCorners[3].x,patchCorners[3].y) );
+        cv::polylines(img, patchCornersFixpt, true, cv::Scalar (163, 0, 255), 2, 16);
+        std::stringstream e_str;
+        e_str << "E=" << unsigned(patchError);
+        //e_str << " E[B]=" << int(b_error) << " E[G]=" << int(g_error)  << " E[R]=" << int(r_error); 
+        cv::putText(img, e_str.str(), patchCornersFixpt[0], cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(0,0,255), 1, cv::LINE_AA);        
       }
       std::stringstream e_str;
-      e_str << "E=" << unsigned(chartError);
+      e_str << "E=" << unsigned(chartError) << " E[B]=" << unsigned(chartErrorB) << " E[G]=" << unsigned(chartErrorG)  << " E[R]=" << unsigned(chartErrorR);
       cv::putText(img, e_str.str(), cv::Point(10,20), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(0,0,255), 1, cv::LINE_AA);
-#if 0
-      // Draw real coordinates on image
+
+      // Draw border around "color checker" area
       std::vector<cv::Point> polygonPoints;
       polygonPoints.push_back(cv::Point(chartCorners[0].x,chartCorners[0].y));
       polygonPoints.push_back(cv::Point(chartCorners[1].x,chartCorners[1].y));
       polygonPoints.push_back(cv::Point(chartCorners[2].x,chartCorners[2].y));
       polygonPoints.push_back(cv::Point(chartCorners[3].x,chartCorners[3].y));
       cv::polylines(img, polygonPoints, true, cv::Scalar (0, 255, 0), 2, 16);
-      for ( int i = 0; i < 24; i++ ) {
-          cv::circle(img, chartCentroids[i] ,5, cv::Scalar(0,0,255),cv::FILLED, 8,0);
-      };
-#endif
+      //for ( int i = 0; i < 24; i++ ) {
+      //    cv::circle(img, chartCentroids[i] ,5, cv::Scalar(163, 0, 255),cv::FILLED, 8,0);
+      //};
+
+      // Call Color Checker Script (if specified)
+      if ( markerdetect->cc_script != NULL )
+      { 
+        if ( (markerdetect->iterations > 50) && (markerdetect->cc_frame_count > markerdetect->cc_skip_frames) )
+        {
+          char szCommand[1024];
+          if ( markerdetect->cc_extra_args != NULL )
+          {
+            sprintf(szCommand,"%s %s %s\n", markerdetect->cc_script, color_patch_bgr_values.str().c_str(), markerdetect->cc_extra_args );
+          }
+          else {
+            sprintf(szCommand,"%s %s\n", markerdetect->cc_script, color_patch_bgr_values.str().c_str() );
+          }
+          //printf(szCommand);
+          system(szCommand);
+          
+          markerdetect->cc_frame_count = 0;
+        }
+      }
 
     }
     // Chart 2 - White Reference
