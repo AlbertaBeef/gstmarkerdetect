@@ -93,16 +93,18 @@ gst_markerdetect_class_init (GstMarkerDetectClass * klass)
      base_class_init if you intend to subclass this class. */
   gst_element_class_add_pad_template (GST_ELEMENT_CLASS(klass),
     gst_pad_template_new ("src", GST_PAD_SRC, GST_PAD_ALWAYS,
-      gst_caps_from_string (VIDEO_SRC_CAPS ",width = (int) [1, 1920], height = (int) [1, 1080]")));
+      //gst_caps_from_string (VIDEO_SRC_CAPS ",width = (int) [1, 1920], height = (int) [1, 1080]")));
+      gst_caps_from_string (VIDEO_SRC_CAPS ",width = (int) [1, 3840], height = (int) [1, 2160]")));
   gst_element_class_add_pad_template (GST_ELEMENT_CLASS(klass),
     gst_pad_template_new ("sink", GST_PAD_SINK, GST_PAD_ALWAYS,
-      gst_caps_from_string (VIDEO_SINK_CAPS ", width = (int) [1, 1920], height = (int) [1, 1080]")));
+      //gst_caps_from_string (VIDEO_SINK_CAPS ", width = (int) [1, 1920], height = (int) [1, 1080]")));
+      gst_caps_from_string (VIDEO_SINK_CAPS ", width = (int) [1, 3840], height = (int) [1, 2160]")));
 
   gst_element_class_set_static_metadata (GST_ELEMENT_CLASS(klass),
     "Marker detection using the OpenCV Library", 
     "Video Filter", 
     "Marker Detection",
-    "FIXME <fixme@example.com>");
+    "AlbertaBeef <grouby177@gmail.com>");
 
   gobject_class->set_property = gst_markerdetect_set_property;
   gobject_class->get_property = gst_markerdetect_get_property;
@@ -177,6 +179,17 @@ gst_markerdetect_set_property (GObject * object, guint property_id,
   GST_DEBUG_OBJECT (markerdetect, "set_property");
 
   switch (property_id) {
+    case PROP_CC_SCRIPT:
+      g_free (markerdetect->cc_script);
+      markerdetect->cc_script = g_value_dup_string (value);
+      break;
+    case PROP_CC_EXTRA_ARGS:
+      g_free (markerdetect->cc_extra_args);
+      markerdetect->cc_extra_args = g_value_dup_string (value);
+      break;
+    case PROP_CC_SKIP_FRAMES:
+      markerdetect->cc_skip_frames = g_value_get_int (value);
+      break;
     case PROP_WB_SCRIPT:
       g_free (markerdetect->wb_script);
       markerdetect->wb_script = g_value_dup_string (value);
@@ -203,6 +216,15 @@ gst_markerdetect_get_property (GObject * object, guint property_id,
   GST_DEBUG_OBJECT (markerdetect, "get_property");
 
   switch (property_id) {
+    case PROP_CC_SCRIPT:
+      g_value_set_string (value, markerdetect->cc_script);
+      break;
+    case PROP_CC_EXTRA_ARGS:
+      g_value_set_string (value, markerdetect->cc_extra_args);
+      break;
+    case PROP_CC_SKIP_FRAMES:
+      g_value_set_int (value, markerdetect->cc_skip_frames);
+      break;      
     case PROP_WB_SCRIPT:
       g_value_set_string (value, markerdetect->wb_script);
       break;
@@ -291,6 +313,7 @@ gst_markerdetect_transform_frame_ip (GstVideoFilter * filter, GstVideoFrame * fr
   GstMarkerDetect *markerdetect = GST_MARKERDETECT (filter);
 
   markerdetect->iterations++;
+  markerdetect->cc_frame_count++;
   markerdetect->wb_frame_count++;
 
   /* Setup an OpenCV Mat with the frame data */
@@ -537,11 +560,17 @@ gst_markerdetect_transform_frame_ip (GstVideoFilter * filter, GstVideoFrame * fr
         std::stringstream e_str;
         e_str << "E=" << unsigned(patchError);
         //e_str << " E[B]=" << int(b_error) << " E[G]=" << int(g_error)  << " E[R]=" << int(r_error); 
-        cv::putText(img, e_str.str(), patchCornersFixpt[0], cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(0,0,255), 1, cv::LINE_AA);        
+        cv::putText(img, e_str.str(), patchCornersFixpt[0], cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(99,31,0), 1, cv::LINE_AA);        
       }
-      std::stringstream e_str;
-      e_str << "E=" << unsigned(chartError) << " E[B]=" << unsigned(chartErrorB) << " E[G]=" << unsigned(chartErrorG)  << " E[R]=" << unsigned(chartErrorR);
-      cv::putText(img, e_str.str(), cv::Point(10,20), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(0,0,255), 1, cv::LINE_AA);
+      std::stringstream e_str, eb_str, eg_str, er_str;
+      e_str << "E=" << unsigned(chartError);
+      cv::putText(img, e_str.str(), cv::Point(10,20), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(99,31,0), 1, cv::LINE_AA);
+      eb_str << " E[B]=" << unsigned(chartErrorB);
+      cv::putText(img, eb_str.str(), cv::Point(10,40), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(255,0,0), 1, cv::LINE_AA);
+      eg_str << " E[G]=" << unsigned(chartErrorG);
+      cv::putText(img, eg_str.str(), cv::Point(10,60), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(0,255,0), 1, cv::LINE_AA);
+      er_str << " E[R]=" << unsigned(chartErrorR);
+      cv::putText(img, er_str.str(), cv::Point(10,80), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(0,0,255), 1, cv::LINE_AA);
 
       // Draw border around "color checker" area
       std::vector<cv::Point> polygonPoints;
