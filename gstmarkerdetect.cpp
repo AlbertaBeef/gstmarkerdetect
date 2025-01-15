@@ -438,10 +438,16 @@ gst_markerdetect_transform_frame_ip (GstVideoFilter * filter, GstVideoFrame * fr
       color_patch_bgr_values << "";
 
       // Cumulate color patch errors
-      float chartError = 0.0;
+      float chartErrorBGR = 0.0;
       float chartErrorB = 0.0;
       float chartErrorG = 0.0;
       float chartErrorR = 0.0;
+
+      // Explore other color spaces
+      float chartErrorYUV = 0.0;
+      float chartErrorY = 0.0;
+      float chartErrorU = 0.0;
+      float chartErrorV = 0.0;
       
       for ( int i = 0; i < 24; i++ )
       {
@@ -471,23 +477,44 @@ gst_markerdetect_transform_frame_ip (GstVideoFilter * filter, GstVideoFrame * fr
         cv::fillPoly(mask, points, &npoints, 1, cv::Scalar(255));
         
         // Calculate mean in masked area
-        auto bgr_mean = cv::mean( img, mask );
-        float b_mean = bgr_mean(0);
-        float g_mean = bgr_mean(1);
-        float r_mean = bgr_mean(2);
+        //auto bgr_mean = cv::mean( img, mask );
+        cv::Scalar bgr_mean1 = cv::mean( img, mask );
+        float b_mean = bgr_mean1(0);
+        float g_mean = bgr_mean1(1);
+        float r_mean = bgr_mean1(2);
         float b_error = chartColorsRef[i][0]-b_mean;
         float g_error = chartColorsRef[i][1]-g_mean;
         float r_error = chartColorsRef[i][2]-r_mean;
-        
+
         // Create string of bgr values for each color patch
         color_patch_bgr_values << int(b_mean) << " " << int(g_mean) << " " << int(r_mean) << " ";
         
         // Cumulate color patch errors
-        float patchError = std::sqrt(pow(b_error,2) + pow(g_error,2) + pow(r_error,2));
-        chartError += patchError;
+        float patchErrorBGR = std::sqrt(pow(b_error,2) + pow(g_error,2) + pow(r_error,2));
+        chartErrorBGR += patchErrorBGR;
         chartErrorB += abs(b_error);
         chartErrorG += abs(g_error);
         chartErrorR += abs(r_error);
+
+        // Explore different color spaces        
+        cv::Mat3f bgr_mean2(cv::Vec3f(b_mean, g_mean, r_mean));
+        cv::Mat3f bgr_patch(cv::Vec3f(chartColorsRef[i][0],chartColorsRef[i][1],chartColorsRef[i][2]));
+        cv::Mat3f yuv_mean;
+        cv::Mat3f yuv_patch;
+        cv::cvtColor(bgr_mean2, yuv_mean, cv::COLOR_BGR2YUV);
+        cv::cvtColor(bgr_patch, yuv_patch, cv::COLOR_BGR2YUV);
+        cv::Vec3f yuv_mean_pixel = yuv_mean[0][0];
+        cv::Vec3f yuv_patch_pixel = yuv_patch[0][0];
+        float y_error = yuv_patch_pixel[0]-yuv_mean_pixel[0];
+        float u_error = yuv_patch_pixel[1]-yuv_mean_pixel[1];
+        float v_error = yuv_patch_pixel[2]-yuv_mean_pixel[2];        
+        // Cumulate color patch errors
+        //float patchErrorYUV = std::sqrt(pow(y_error,2) + pow(u_error,2) + pow(v_error,2));
+        float patchErrorYUV = std::sqrt(pow(u_error,2) + pow(v_error,2));
+        chartErrorYUV += patchErrorYUV;
+        chartErrorY += abs(y_error);
+        chartErrorU += abs(u_error);
+        chartErrorV += abs(v_error);
       
 #if 0
         //
@@ -558,12 +585,14 @@ gst_markerdetect_transform_frame_ip (GstVideoFilter * filter, GstVideoFrame * fr
         patchCornersFixpt.push_back( cv::Point(patchCorners[3].x,patchCorners[3].y) );
         cv::polylines(img, patchCornersFixpt, true, cv::Scalar (163, 0, 255), 2, 16);
         std::stringstream e_str;
-        e_str << "E=" << unsigned(patchError);
+        //e_str << "E=" << unsigned(patchErrorBGR) << "|" << unsigned(patchErrorYUV);
+        //e_str << "E[BGR|YUV]=" << unsigned(patchErrorBGR) << "|" << unsigned(patchErrorYUV);
+        e_str << unsigned(patchErrorBGR) << "|" << unsigned(patchErrorYUV);
         //e_str << " E[B]=" << int(b_error) << " E[G]=" << int(g_error)  << " E[R]=" << int(r_error); 
         cv::putText(img, e_str.str(), patchCornersFixpt[0], cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(99,31,0), 1, cv::LINE_AA);        
       }
       std::stringstream e_str, eb_str, eg_str, er_str;
-      e_str << "E=" << unsigned(chartError);
+      e_str << "E[BGR]=" << unsigned(chartErrorBGR);
       cv::putText(img, e_str.str(), cv::Point(10,20), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(99,31,0), 1, cv::LINE_AA);
       eb_str << " E[B]=" << unsigned(chartErrorB);
       cv::putText(img, eb_str.str(), cv::Point(10,40), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(255,0,0), 1, cv::LINE_AA);
@@ -572,6 +601,18 @@ gst_markerdetect_transform_frame_ip (GstVideoFilter * filter, GstVideoFrame * fr
       er_str << " E[R]=" << unsigned(chartErrorR);
       cv::putText(img, er_str.str(), cv::Point(10,80), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(0,0,255), 1, cv::LINE_AA);
 
+      // Explore other color spaces
+      std::stringstream eyuv_str, ey_str, eu_str, ev_str;
+      eyuv_str << "E[UV]=" << unsigned(chartErrorYUV);
+      cv::putText(img, eyuv_str.str(), cv::Point(10,120), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(99,31,0), 1, cv::LINE_AA);
+      ey_str << " E[Y]=" << unsigned(chartErrorY);
+      cv::putText(img, ey_str.str(), cv::Point(10,140), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(255,255,255), 1, cv::LINE_AA);
+      eu_str << " E[U]=" << unsigned(chartErrorU);
+      cv::putText(img, eu_str.str(), cv::Point(10,160), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(255,255,0), 1, cv::LINE_AA);
+      ev_str << " E[V]=" << unsigned(chartErrorV);
+      cv::putText(img, ev_str.str(), cv::Point(10,180), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(0,255,255), 1, cv::LINE_AA);
+      
+      
       // Draw border around "color checker" area
       std::vector<cv::Point> polygonPoints;
       polygonPoints.push_back(cv::Point(chartCorners[0].x,chartCorners[0].y));
