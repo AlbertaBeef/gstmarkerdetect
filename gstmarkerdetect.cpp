@@ -443,11 +443,29 @@ gst_markerdetect_transform_frame_ip (GstVideoFilter * filter, GstVideoFrame * fr
       float chartErrorG = 0.0;
       float chartErrorR = 0.0;
 
-      // Explore other color spaces
+      // YUV Color Space
       float chartErrorYUV = 0.0;
       float chartErrorY = 0.0;
       float chartErrorU = 0.0;
       float chartErrorV = 0.0;
+
+      // LAB Color Space
+      float chartErrorLAB = 0.0;
+      float chartErrorL = 0.0;
+      float chartErrorA = 0.0;
+      float chartErrorBB = 0.0;
+
+      // HSV Color Space
+      float chartErrorHSV = 0.0;
+      float chartErrorH = 0.0;
+      float chartErrorS = 0.0;
+      float chartErrorVV = 0.0;
+
+      // XYZ Color Space
+      float chartErrorXYZ = 0.0;
+      float chartErrorX = 0.0;
+      float chartErrorYY = 0.0;
+      float chartErrorZ = 0.0;
       
       for ( int i = 0; i < 24; i++ )
       {
@@ -499,6 +517,8 @@ gst_markerdetect_transform_frame_ip (GstVideoFilter * filter, GstVideoFrame * fr
         // Explore different color spaces        
         cv::Mat3f bgr_mean2(cv::Vec3f(b_mean, g_mean, r_mean));
         cv::Mat3f bgr_patch(cv::Vec3f(chartColorsRef[i][0],chartColorsRef[i][1],chartColorsRef[i][2]));
+
+        // YUV Color Space
         cv::Mat3f yuv_mean;
         cv::Mat3f yuv_patch;
         cv::cvtColor(bgr_mean2, yuv_mean, cv::COLOR_BGR2YUV);
@@ -515,6 +535,57 @@ gst_markerdetect_transform_frame_ip (GstVideoFilter * filter, GstVideoFrame * fr
         chartErrorY += abs(y_error);
         chartErrorU += abs(u_error);
         chartErrorV += abs(v_error);
+
+        // LAB Color Space
+        cv::Mat3f lab_mean;
+        cv::Mat3f lab_patch;
+        cv::cvtColor(bgr_mean2, lab_mean, cv::COLOR_BGR2Lab);
+        cv::cvtColor(bgr_patch, lab_patch, cv::COLOR_BGR2Lab);
+        cv::Vec3f lab_mean_pixel = lab_mean[0][0];
+        cv::Vec3f lab_patch_pixel = lab_patch[0][0];
+        float l_error = lab_patch_pixel[0]-lab_mean_pixel[0];
+        float a_error = lab_patch_pixel[1]-lab_mean_pixel[1];
+        float bb_error = lab_patch_pixel[2]-lab_mean_pixel[2];        
+        // Cumulate color patch errors
+        float patchErrorLAB = std::sqrt(pow(l_error,2) + pow(a_error,2) + pow(bb_error,2));
+        chartErrorLAB += patchErrorLAB;
+        chartErrorL += abs(l_error);
+        chartErrorA += abs(a_error);
+        chartErrorBB += abs(bb_error);
+
+        // HSV Color Space
+        cv::Mat3f hsv_mean;
+        cv::Mat3f hsv_patch;
+        cv::cvtColor(bgr_mean2, hsv_mean, cv::COLOR_BGR2HSV);
+        cv::cvtColor(bgr_patch, hsv_patch, cv::COLOR_BGR2HSV);
+        cv::Vec3f hsv_mean_pixel = hsv_mean[0][0];
+        cv::Vec3f hsv_patch_pixel = hsv_patch[0][0];
+        float h_error = hsv_patch_pixel[0]-hsv_mean_pixel[0];
+        float s_error = hsv_patch_pixel[1]-hsv_mean_pixel[1];
+        float vv_error = hsv_patch_pixel[2]-hsv_mean_pixel[2];        
+        // Cumulate color patch errors
+        float patchErrorHSV = std::sqrt(pow(h_error,2) + pow(s_error,2) + pow(vv_error,2));
+        chartErrorHSV += patchErrorHSV;
+        chartErrorH += abs(h_error);
+        chartErrorS += abs(s_error);
+        chartErrorVV += abs(vv_error);
+
+        // XYZ Color Space
+        cv::Mat3f xyz_mean;
+        cv::Mat3f xyz_patch;
+        cv::cvtColor(bgr_mean2, xyz_mean, cv::COLOR_BGR2XYZ);
+        cv::cvtColor(bgr_patch, xyz_patch, cv::COLOR_BGR2XYZ);
+        cv::Vec3f xyz_mean_pixel = xyz_mean[0][0];
+        cv::Vec3f xyz_patch_pixel = xyz_patch[0][0];
+        float x_error = xyz_patch_pixel[0]-xyz_mean_pixel[0];
+        float yy_error = xyz_patch_pixel[1]-xyz_mean_pixel[1];
+        float z_error = xyz_patch_pixel[2]-xyz_mean_pixel[2];        
+        // Cumulate color patch errors
+        float patchErrorXYZ = std::sqrt(pow(x_error,2) + pow(yy_error,2) + pow(z_error,2));
+        chartErrorXYZ += patchErrorXYZ;
+        chartErrorX += abs(x_error);
+        chartErrorYY += abs(yy_error);
+        chartErrorZ += abs(z_error);
       
 #if 0
         //
@@ -591,27 +662,66 @@ gst_markerdetect_transform_frame_ip (GstVideoFilter * filter, GstVideoFrame * fr
         //e_str << " E[B]=" << int(b_error) << " E[G]=" << int(g_error)  << " E[R]=" << int(r_error); 
         cv::putText(img, e_str.str(), patchCornersFixpt[0], cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(99,31,0), 1, cv::LINE_AA);        
       }
+      
+      // BGR color space
+      unsigned int y_offset = 20;
       std::stringstream e_str, eb_str, eg_str, er_str;
       e_str << "E[BGR]=" << unsigned(chartErrorBGR);
-      cv::putText(img, e_str.str(), cv::Point(10,20), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(99,31,0), 1, cv::LINE_AA);
+      cv::putText(img, e_str.str(), cv::Point(10,y_offset+20), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(99,31,0), 1, cv::LINE_AA);
       eb_str << " E[B]=" << unsigned(chartErrorB);
-      cv::putText(img, eb_str.str(), cv::Point(10,40), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(255,0,0), 1, cv::LINE_AA);
+      cv::putText(img, eb_str.str(), cv::Point(10,y_offset+40), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(255,0,0), 1, cv::LINE_AA);
       eg_str << " E[G]=" << unsigned(chartErrorG);
-      cv::putText(img, eg_str.str(), cv::Point(10,60), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(0,255,0), 1, cv::LINE_AA);
+      cv::putText(img, eg_str.str(), cv::Point(10,y_offset+60), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(0,255,0), 1, cv::LINE_AA);
       er_str << " E[R]=" << unsigned(chartErrorR);
-      cv::putText(img, er_str.str(), cv::Point(10,80), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(0,0,255), 1, cv::LINE_AA);
+      cv::putText(img, er_str.str(), cv::Point(10,y_offset+80), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(0,0,255), 1, cv::LINE_AA);
 
-      // Explore other color spaces
+      // YUV color space
+      y_offset += 100;
       std::stringstream eyuv_str, ey_str, eu_str, ev_str;
       eyuv_str << "E[UV]=" << unsigned(chartErrorYUV);
-      cv::putText(img, eyuv_str.str(), cv::Point(10,120), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(99,31,0), 1, cv::LINE_AA);
+      cv::putText(img, eyuv_str.str(), cv::Point(10,y_offset+20), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(99,31,0), 1, cv::LINE_AA);
       ey_str << " E[Y]=" << unsigned(chartErrorY);
-      cv::putText(img, ey_str.str(), cv::Point(10,140), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(255,255,255), 1, cv::LINE_AA);
+      cv::putText(img, ey_str.str(), cv::Point(10,y_offset+40), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(0,0,0), 1, cv::LINE_AA);
       eu_str << " E[U]=" << unsigned(chartErrorU);
-      cv::putText(img, eu_str.str(), cv::Point(10,160), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(255,255,0), 1, cv::LINE_AA);
+      cv::putText(img, eu_str.str(), cv::Point(10,y_offset+60), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(0,0,0), 1, cv::LINE_AA);
       ev_str << " E[V]=" << unsigned(chartErrorV);
-      cv::putText(img, ev_str.str(), cv::Point(10,180), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(0,255,255), 1, cv::LINE_AA);
+      cv::putText(img, ev_str.str(), cv::Point(10,y_offset+80), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(0,0,0), 1, cv::LINE_AA);
+
+      // LAB color space
+      y_offset += 100;
+      std::stringstream elab_str, el_str, ea_str, ebb_str;
+      elab_str << "E[LAB]=" << unsigned(chartErrorLAB);
+      cv::putText(img, elab_str.str(), cv::Point(10,y_offset+20), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(99,31,0), 1, cv::LINE_AA);
+      el_str << " E[L]=" << unsigned(chartErrorL);
+      cv::putText(img, el_str.str(), cv::Point(10,y_offset+40), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(0,0,0), 1, cv::LINE_AA);
+      ea_str << " E[A]=" << unsigned(chartErrorA);
+      cv::putText(img, ea_str.str(), cv::Point(10,y_offset+60), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(0,0,0), 1, cv::LINE_AA);
+      ebb_str << " E[B]=" << unsigned(chartErrorBB);
+      cv::putText(img, ebb_str.str(), cv::Point(10,y_offset+80), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(0,0,0), 1, cv::LINE_AA);
+
+      // HSV color space
+      y_offset += 100;
+      std::stringstream ehsv_str, eh_str, es_str, evv_str;
+      ehsv_str << "E[HSV]=" << unsigned(chartErrorHSV);
+      cv::putText(img, ehsv_str.str(), cv::Point(10,y_offset+20), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(99,31,0), 1, cv::LINE_AA);
+      eh_str << " E[H]=" << unsigned(chartErrorH);
+      cv::putText(img, eh_str.str(), cv::Point(10,y_offset+40), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(0,0,0), 1, cv::LINE_AA);
+      es_str << " E[S]=" << unsigned(chartErrorS);
+      cv::putText(img, es_str.str(), cv::Point(10,y_offset+60), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(0,0,0), 1, cv::LINE_AA);
+      evv_str << " E[V]=" << unsigned(chartErrorVV);
+      cv::putText(img, evv_str.str(), cv::Point(10,y_offset+80), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(0,0,0), 1, cv::LINE_AA);
       
+      // XYZ color space
+      y_offset += 100;
+      std::stringstream exyz_str, ex_str, eyy_str, ez_str;
+      exyz_str << "E[XYZ]=" << unsigned(chartErrorXYZ);
+      cv::putText(img, exyz_str.str(), cv::Point(10,y_offset+20), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(99,31,0), 1, cv::LINE_AA);
+      ex_str << " E[X]=" << unsigned(chartErrorX);
+      cv::putText(img, ex_str.str(), cv::Point(10,y_offset+40), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(0,0,0), 1, cv::LINE_AA);
+      eyy_str << " E[Y]=" << unsigned(chartErrorYY);
+      cv::putText(img, eyy_str.str(), cv::Point(10,y_offset+60), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(0,0,0), 1, cv::LINE_AA);
+      ez_str << " E[Z]=" << unsigned(chartErrorZ);
+      cv::putText(img, ez_str.str(), cv::Point(10,y_offset+80), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(0,0,0), 1, cv::LINE_AA);
       
       // Draw border around "color checker" area
       std::vector<cv::Point> polygonPoints;
