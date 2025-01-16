@@ -658,9 +658,11 @@ gst_markerdetect_transform_frame_ip (GstVideoFilter * filter, GstVideoFrame * fr
         std::stringstream e_str;
         //e_str << "E=" << unsigned(patchErrorBGR) << "|" << unsigned(patchErrorYUV);
         //e_str << "E[BGR|YUV]=" << unsigned(patchErrorBGR) << "|" << unsigned(patchErrorYUV);
-        e_str << unsigned(patchErrorBGR) << "|" << unsigned(patchErrorYUV);
         //e_str << " E[B]=" << int(b_error) << " E[G]=" << int(g_error)  << " E[R]=" << int(r_error); 
-        cv::putText(img, e_str.str(), patchCornersFixpt[0], cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(99,31,0), 1, cv::LINE_AA);        
+        //e_str << unsigned(patchErrorBGR) << "|" << unsigned(patchErrorYUV);
+        e_str << "E[UV]" << unsigned(patchErrorYUV);
+        cv::putText(img, e_str.str(), patchCornersFixpt[0], cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(0,0,0), 1, cv::LINE_AA);        
+        cv::putText(img, e_str.str(), patchCornersFixpt[3], cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(255,255,255), 1, cv::LINE_AA);        
       }
       
       // BGR color space
