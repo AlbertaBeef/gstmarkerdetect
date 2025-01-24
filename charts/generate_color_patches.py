@@ -66,11 +66,5 @@ for i,centroid in enumerate(chartCentroidsRef):
    color = [chartColorsRef[i][0],chartColorsRef[i][1],chartColorsRef[i][2],255]
    print( centroid, " => ", point, color )
    blank_image[point[0]-44:point[0]+44,point[1]-44:point[1]+44] = color
-   
-# Make first 10 rows red and opaque
-#blank_image[:100] = [255,0,0,255]
-    
-# Make first 10 columns green and opaque
-#blank_image[:,:100] = [0,255,0,255]
 
 cv2.imwrite('test.png', blank_image)
