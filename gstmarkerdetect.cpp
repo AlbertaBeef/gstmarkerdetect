@@ -60,6 +60,8 @@ enum
   PROP_CC_SCRIPT,
   PROP_CC_EXTRA_ARGS,
   PROP_CC_SKIP_FRAMES,
+  PROP_CC_SHOW_GT, // ground truth colors
+  PROP_CC_SHOW_EC, // error color code (GnYlRd)
   PROP_WB_SCRIPT,
   PROP_WB_EXTRA_ARGS,
   PROP_WB_SKIP_FRAMES
@@ -127,6 +129,18 @@ gst_markerdetect_class_init (GstMarkerDetectClass * klass)
           0,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
+  g_object_class_install_property (gobject_class, PROP_CC_SHOW_GT,
+      g_param_spec_boolean ("cc-show-gt", "cc-show-gt",
+          "Color Checker show grounth truth (on right half of color patch).",
+          FALSE, 
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
+  g_object_class_install_property (gobject_class, PROP_CC_SHOW_EC,
+      g_param_spec_boolean ("cc-show-ec", "cc-show-ec",
+          "Color Checker show error color (on a GrYlRd scale for values 0-59).",
+          FALSE, 
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+
   g_object_class_install_property (gobject_class, PROP_WB_SCRIPT,
       g_param_spec_string ("wb-script", "wb-script",
           "White Balance script.", 
@@ -163,6 +177,8 @@ gst_markerdetect_init (GstMarkerDetect *markerdetect)
    markerdetect->cc_extra_args = NULL;
    markerdetect->cc_skip_frames = 0;
    markerdetect->cc_frame_count = 0;
+   markerdetect->cc_show_gt = FALSE;
+   markerdetect->cc_show_ec = FALSE;
 
    markerdetect->wb_script = NULL;
    markerdetect->wb_extra_args = NULL;
@@ -189,6 +205,12 @@ gst_markerdetect_set_property (GObject * object, guint property_id,
       break;
     case PROP_CC_SKIP_FRAMES:
       markerdetect->cc_skip_frames = g_value_get_int (value);
+      break;
+    case PROP_CC_SHOW_GT:
+      markerdetect->cc_show_gt = g_value_get_boolean (value);
+      break;
+    case PROP_CC_SHOW_EC:
+      markerdetect->cc_show_ec = g_value_get_boolean (value);
       break;
     case PROP_WB_SCRIPT:
       g_free (markerdetect->wb_script);
@@ -224,6 +246,12 @@ gst_markerdetect_get_property (GObject * object, guint property_id,
       break;
     case PROP_CC_SKIP_FRAMES:
       g_value_set_int (value, markerdetect->cc_skip_frames);
+      break;      
+    case PROP_CC_SHOW_GT:
+      g_value_set_boolean (value, markerdetect->cc_show_gt);
+      break;      
+    case PROP_CC_SHOW_EC:
+      g_value_set_boolean (value, markerdetect->cc_show_ec);
       break;      
     case PROP_WB_SCRIPT:
       g_value_set_string (value, markerdetect->wb_script);
@@ -394,6 +422,8 @@ gst_markerdetect_transform_frame_ip (GstVideoFilter * filter, GstVideoFrame * fr
         { 46,409}, {150,409}, {252,409}, {355,409}, {458,409}, {561,409}
       };
       // Reference width/height of color patches is approximately 89/88, so take safe subset of this
+      float colorPatchFullWidth = 88.0;
+      float colorPatchFullHeight = 88.0;
       float colorPatchWidth = 50.0;
       float colorPatchHeight = 50.0;
       
@@ -410,7 +440,75 @@ gst_markerdetect_transform_frame_ip (GstVideoFilter * filter, GstVideoFrame * fr
       // White          Neutral 8      Neutral 65     Neutral 5      Neutral 35     Black
         {242,243,243}, {200,200,200}, {160,160,160}, {121,122,122}, { 85, 85, 85}, { 52, 52, 52}
       };
-
+      
+      // BGR values for GrYlRd colormap
+      // (generated with colormap_GrYlRd.py)
+      std::vector<cv::Scalar> colormap_GrYlRd =
+      {
+         {   58 ,  111 ,    4  },
+         {   62 ,  119 ,    8  },
+         {   66 ,  126 ,   12  },
+         {   71 ,  136 ,   17  },
+         {   75 ,  143 ,   21  },
+         {   79 ,  151 ,   25  },
+         {   82 ,  157 ,   36  },
+         {   86 ,  164 ,   51  },
+         {   89 ,  170 ,   63  },
+         {   92 ,  175 ,   75  },
+         {   95 ,  181 ,   87  },
+         {   99 ,  189 ,  102  },
+         {  100 ,  193 ,  112  },
+         {  101 ,  197 ,  122  },
+         {  102 ,  202 ,  132  },
+         {  103 ,  207 ,  144  },
+         {  104 ,  212 ,  154  },
+         {  105 ,  216 ,  164  },
+         {  111 ,  220 ,  175  },
+         {  117 ,  224 ,  183  },
+         {  122 ,  227 ,  191  },
+         {  127 ,  231 ,  199  },
+         {  133 ,  235 ,  209  },
+         {  139 ,  239 ,  217  },
+         {  147 ,  241 ,  222  },
+         {  155 ,  244 ,  228  },
+         {  165 ,  247 ,  236  },
+         {  173 ,  249 ,  242  },
+         {  181 ,  252 ,  248  },
+         {  189 ,  254 ,  254  },
+         {  181 ,  249 ,  254  },
+         {  173 ,  244 ,  254  },
+         {  165 ,  239 ,  254  },
+         {  155 ,  233 ,  254  },
+         {  147 ,  228 ,  254  },
+         {  139 ,  224 ,  254  },
+         {  132 ,  216 ,  253  },
+         {  124 ,  206 ,  253  },
+         {  117 ,  198 ,  253  },
+         {  110 ,  190 ,  253  },
+         {  104 ,  182 ,  253  },
+         {   96 ,  172 ,  252  },
+         {   91 ,  162 ,  251  },
+         {   86 ,  152 ,  250  },
+         {   82 ,  142 ,  248  },
+         {   76 ,  129 ,  246  },
+         {   71 ,  119 ,  245  },
+         {   67 ,  109 ,  244  },
+         {   61 ,   97 ,  238  },
+         {   57 ,   87 ,  233  },
+         {   52 ,   77 ,  229  },
+         {   48 ,   68 ,  224  },
+         {   42 ,   56 ,  218  },
+         {   38 ,   47 ,  214  },
+         {   38 ,   39 ,  206  },
+         {   38 ,   32 ,  198  },
+         {   38 ,   22 ,  188  },
+         {   38 ,   15 ,  180  },
+         {   38 ,    7 ,  172  },
+         {   38 ,    0 ,  165  }
+      };
+      unsigned colormap_size = colormap_GrYlRd.size();
+      //printf("[INFO] colormap_size = %d\n\r",colormap_size);
+      
       // Calculate transformation matrix based on ROI defined by ArUco markers
       std::vector<cv::Point2f> srcPoints;
       std::vector<cv::Point2f> dstPoints;
@@ -600,7 +698,7 @@ gst_markerdetect_transform_frame_ip (GstVideoFilter * filter, GstVideoFrame * fr
         float b_value = b_mean;
         float g_value = g_mean;
         float r_value = r_mean;
-  #else        
+  #else
         // Use these lines to display BGR error (with ground truth)
         float b_value = b_error;
         float g_value = g_error;
@@ -648,21 +746,57 @@ gst_markerdetect_transform_frame_ip (GstVideoFilter * filter, GstVideoFrame * fr
         img = img + img_temp;
 #endif        
 
-        // Draw Color Patch ROI
-        std::vector<cv::Point> patchCornersFixpt;
-        patchCornersFixpt.push_back( cv::Point(patchCorners[0].x,patchCorners[0].y) );
-        patchCornersFixpt.push_back( cv::Point(patchCorners[1].x,patchCorners[1].y) );
-        patchCornersFixpt.push_back( cv::Point(patchCorners[2].x,patchCorners[2].y) );
-        patchCornersFixpt.push_back( cv::Point(patchCorners[3].x,patchCorners[3].y) );
-        cv::polylines(img, patchCornersFixpt, true, cv::Scalar (163, 0, 255), 2, 16);
-        std::stringstream e_str;
-        //e_str << "E=" << unsigned(patchErrorBGR) << "|" << unsigned(patchErrorYUV);
-        //e_str << "E[BGR|YUV]=" << unsigned(patchErrorBGR) << "|" << unsigned(patchErrorYUV);
-        //e_str << " E[B]=" << int(b_error) << " E[G]=" << int(g_error)  << " E[R]=" << int(r_error); 
-        //e_str << unsigned(patchErrorBGR) << "|" << unsigned(patchErrorYUV);
-        e_str << "E[UV]" << unsigned(patchErrorYUV);
-        cv::putText(img, e_str.str(), patchCornersFixpt[0], cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(0,0,0), 1, cv::LINE_AA);        
-        cv::putText(img, e_str.str(), patchCornersFixpt[3], cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(255,255,255), 1, cv::LINE_AA);        
+        if ( markerdetect->cc_show_gt == TRUE )
+        {
+          // Overlay ground truth on right half of color patch (for visual comparison)
+          std::vector<cv::Point2f> halfPatchCornersRef;
+          std::vector<cv::Point2f> halfPatchCorners;
+          halfPatchCornersRef.push_back(cv::Point2f(chartCentroidsRef[i].x                        ,chartCentroidsRef[i].y-(colorPatchFullHeight/2)));
+          halfPatchCornersRef.push_back(cv::Point2f(chartCentroidsRef[i].x+(colorPatchFullWidth/2),chartCentroidsRef[i].y-(colorPatchFullHeight/2)));
+          halfPatchCornersRef.push_back(cv::Point2f(chartCentroidsRef[i].x+(colorPatchFullWidth/2),chartCentroidsRef[i].y+(colorPatchFullHeight/2)));  
+          halfPatchCornersRef.push_back(cv::Point2f(chartCentroidsRef[i].x                        ,chartCentroidsRef[i].y+(colorPatchFullHeight/2))); 
+          cv::perspectiveTransform(halfPatchCornersRef, halfPatchCorners, warpMatrix);
+          std::vector<cv::Point> halfPatchCornersFixpt;
+          halfPatchCornersFixpt.push_back( cv::Point(halfPatchCorners[0].x,halfPatchCorners[0].y) );
+          halfPatchCornersFixpt.push_back( cv::Point(halfPatchCorners[1].x,halfPatchCorners[1].y) );
+          halfPatchCornersFixpt.push_back( cv::Point(halfPatchCorners[2].x,halfPatchCorners[2].y) );
+          halfPatchCornersFixpt.push_back( cv::Point(halfPatchCorners[3].x,halfPatchCorners[3].y) );
+          cv::fillPoly(img, halfPatchCornersFixpt, chartColorsRef[i]);        
+        }
+        if ( markerdetect->cc_show_ec == TRUE )
+        {
+          // Overlay correctness score in ROI region        
+          std::vector<cv::Point> patchCornersFixpt;
+          patchCornersFixpt.push_back( cv::Point(patchCorners[0].x,patchCorners[0].y) );
+          patchCornersFixpt.push_back( cv::Point(patchCorners[1].x,patchCorners[1].y) );
+          patchCornersFixpt.push_back( cv::Point(patchCorners[2].x,patchCorners[2].y) );
+          patchCornersFixpt.push_back( cv::Point(patchCorners[3].x,patchCorners[3].y) );
+          unsigned colormap_index = (unsigned)patchErrorYUV;
+          if (colormap_index >= colormap_size) colormap_index = colormap_size-1;
+          cv::fillPoly(img, patchCornersFixpt, colormap_GrYlRd[colormap_index]);
+          std::stringstream e_str;        
+          e_str << unsigned(patchErrorYUV);
+          cv::putText(img, e_str.str(), cv::Point(patchCornersFixpt[3].x+5,patchCornersFixpt[3].y-5), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(0,0,0), 1, cv::LINE_AA);
+        }
+        else
+        {
+          // Draw Color Patch ROI
+          std::vector<cv::Point> patchCornersFixpt;
+          patchCornersFixpt.push_back( cv::Point(patchCorners[0].x,patchCorners[0].y) );
+          patchCornersFixpt.push_back( cv::Point(patchCorners[1].x,patchCorners[1].y) );
+          patchCornersFixpt.push_back( cv::Point(patchCorners[2].x,patchCorners[2].y) );
+          patchCornersFixpt.push_back( cv::Point(patchCorners[3].x,patchCorners[3].y) );
+          cv::polylines(img, patchCornersFixpt, true, cv::Scalar (163, 0, 255), 2, 16);
+          std::stringstream e_str;
+          //e_str << "E=" << unsigned(patchErrorBGR) << "|" << unsigned(patchErrorYUV);
+          //e_str << "E[BGR|YUV]=" << unsigned(patchErrorBGR) << "|" << unsigned(patchErrorYUV);
+          //e_str << " E[B]=" << int(b_error) << " E[G]=" << int(g_error)  << " E[R]=" << int(r_error); 
+          //e_str << unsigned(patchErrorBGR) << "|" << unsigned(patchErrorYUV);
+          e_str << "E[UV]" << unsigned(patchErrorYUV);
+          cv::putText(img, e_str.str(), patchCornersFixpt[0], cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(0,0,0), 1, cv::LINE_AA);        
+          cv::putText(img, e_str.str(), patchCornersFixpt[3], cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(255,255,255), 1, cv::LINE_AA);
+        }
+        
       }
       
       // BGR color space

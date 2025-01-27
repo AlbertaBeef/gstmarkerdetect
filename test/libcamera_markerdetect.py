@@ -102,6 +102,10 @@ gst_pipeline = gst_pipeline + " ! videoconvert"
 gst_pipeline = gst_pipeline + " ! markerdetect "
 if ccscript != None:
 	gst_pipeline = gst_pipeline + "cc-script=\""+ccscript+"\" cc-extra-args=\""+dev_video+"\" cc-skip-frames=0 "
+if True: # show gound trugh color of right half of color patch
+  gst_pipeline = gst_pipeline + "cc-show-gt=1 " 
+if True: # show error as color code (in GrYlRd scale)
+  gst_pipeline = gst_pipeline + "cc-show-ec=1 " 
 if wbscript != None:
 	gst_pipeline = gst_pipeline + "wb-script=\""+wbscript+"\" wb-extra-args=\""+dev_video+"\" wb-skip-frames=0 " 
 gst_pipeline = gst_pipeline + " ! videoconvert"

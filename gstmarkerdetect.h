@@ -41,6 +41,8 @@ struct _GstMarkerDetect
   gchar *cc_extra_args;
   unsigned cc_skip_frames;
   unsigned cc_frame_count; 
+  bool cc_show_gt;
+  bool cc_show_ec;
   
   gchar *wb_script;
   gchar *wb_extra_args;
